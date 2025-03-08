@@ -1,28 +1,189 @@
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 public class XSort {
 	public static void main(String[] args) {
 		int runLength = Integer.parseInt(args[0]);
+		int k = Integer.parseInt(args[1]);
 
 		if (runLength > 1024) {
 			System.out.println("Initial runs length passed too long. Must be between 64 and 1024");
 			return;
-		} else if (runLength < 64) {
+		} else if (runLength < 1) {
 			System.out.println("Initial runs length passed too short. Must be between 64 and 1024");
 			return;
 		}
+		if (k != 0 && k != 2) {
+			System.out.println("This is a 2-way balanced sort merge");
+			return;
+		}
 
-		createInitialRuns(runLength);	
+		createInitialRuns(runLength, k);	
+		System.out.println("Runs created");
+
+		mergeRuns();
 	}
 
-	public static void createInitialRuns(int runLength) {
+	public static void mergeRuns() {
+		String inputT1 = "tape1";
+		String inputT2 = "tape2";
+		String outputT1 = "tape3";
+		String outputT2 = "tape4";
+		String temp1, temp2;
+
+		boolean sorted = false;
+
+		while (!sorted) {
+			sorted = merge(inputT1, inputT2, outputT1, outputT2);
+			System.out.println("swiitching");
+			temp1 = inputT1;
+			temp2 = inputT2;
+
+			inputT1 = outputT1;
+			inputT2 = outputT2;
+			outputT1 = temp1;
+			outputT2 = temp2;
+		}
+	}
+	
+	public static String flush(BufferedReader reader, BufferedWriter writer, String string, String previousString) {
+		try {
+			System.out.println("Flushing from " + string);
+			while (string != null) {
+				if (string.compareTo(previousString) >= 0) {
+					System.out.println(string);
+					writer.write(string);
+					writer.newLine();
+					previousString = string;
+					string = reader.readLine();
+				}
+				else {
+					break;
+				}
+			}
+		}
+		catch (IOException error) {
+			System.err.println(String.format("Exeption occured when flushing tape: %s",error.getMessage()));
+		}
+
+		return string;
+	}
+
+	public static boolean merge(String inputT1, String inputT2, String outputT1, String outputT2) {
+		String outputT = outputT1;
+
+		String string1, string2;
+		String previousString = "";
+
+		BufferedReader reader1, reader2;
+		BufferedWriter writer, writer1, writer2;
+
+		int runCounter = 0;
+		boolean inputTEmpty = false;
+
+		try {
+			reader1 = new BufferedReader(new FileReader(inputT1));
+			reader2 = new BufferedReader(new FileReader(inputT2));
+			writer1 = new BufferedWriter(new FileWriter(outputT1));
+			writer2 = new BufferedWriter(new FileWriter(outputT2));
+			writer = writer1;
+			string1 = reader1.readLine();
+			string2 = reader2.readLine();
+
+			while(!inputTEmpty) {
+				// Truncate file
+				System.out.println(String.format("Merging %s and %s into %s", inputT1, inputT2, outputT));
+				runCounter++;
+				while (true) {
+					System.out.println(String.format("String 1: %s, String 2 %s, Prev %s", string1, string2, previousString));
+
+					if (string1 == null) {
+						string2 = flush(reader2, writer, string2, previousString);
+						if (string2 == null) {
+							inputTEmpty = true;
+						}
+						break;
+					}
+					else if (string2 == null) {
+						string1 = flush(reader1, writer, string1, previousString);
+						if (string1 == null) {
+							inputTEmpty = true;
+						}
+						break;
+					}
+
+
+					if (string1.compareTo(string2) < 0) {
+						if (string1.compareTo(previousString) < 0) {
+							string2 = flush(reader2, writer, string2, previousString);
+							break;
+						}
+						System.out.println("Wrote string 1");
+						writer.write(string1);
+						writer.newLine();
+
+						previousString = string1;
+						string1 = reader1.readLine();
+					}
+					else if (string1.compareTo(string2) >= 0) {
+						if (string2.compareTo(previousString) < 0) {
+							string1 = flush(reader1, writer, string1, previousString);
+							break;
+						}
+						System.out.println("Wrote string 2");
+						writer.write(string2);
+						writer.newLine();
+
+						previousString = string2;
+						string2 = reader2.readLine();
+					}
+					else {
+						// Need to start new run
+						break;
+					}
+				}
+				if (outputT == outputT1) {
+					writer = writer2;
+					outputT = outputT2;
+				}
+				else {
+					writer = writer1;
+					outputT = outputT1;
+				}
+				previousString = "";
+			}
+			writer1.close();
+			writer2.close();
+			reader1.close();
+			reader2.close();
+		}
+		catch (IOException error) {
+			System.err.println(error.getMessage());
+		}
+
+		if (runCounter < 2) {
+			// we are done!
+			return true;
+		}
+		return false;
+	}
+
+	public static void createInitialRuns(int runLength, int k) {
 		String line;
 		String[] run = new String[runLength];
 		int actualRunLength = runLength;
 
 		BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+
+		if (k > 0) {
+			k = 1;
+		}
 
 		try {
 			// While there are lines coming in
@@ -47,15 +208,36 @@ public class XSort {
 				}
 				// Heapsort complete run
 				heapsort(run, actualRunLength);
-				// Print it to standard out
-				for (int i = 0; i < actualRunLength; i++) {
-					System.out.println(run[i]);
+				if (k == 0) {
+					// Print it to standard out
+					for (int i = 0; i < actualRunLength; i++) {
+						System.out.println(run[i]);
+					}
+				} else {
+					// Move this upper bound up to create more initial runs
+					if (k > 2) {
+						k = 1;
+					}
+					writeRunToTape(run, actualRunLength, k);
+					k++;
 				}
 			}
 		}
 		catch (IOException error) {
-			System.out.println("Error reading from standard input");
-			System.out.println(error.getMessage());
+			System.err.printf("Exeption occured when reading from standard out: {0}", error.getMessage());
+		}
+	}
+
+	public static void writeRunToTape(String[] run, int runLength, int k) {
+		String tapeName = "tape"+k;
+
+		try (BufferedWriter writer = new BufferedWriter(new FileWriter(tapeName, true))) {
+			for (int i = 0; i<runLength; i++) {
+				writer.write(run[i]);	
+				writer.newLine();
+			}
+		} catch (IOException error) {
+			System.err.printf("Exeption occured when writing to tape {0}: {1}", tapeName, error.getMessage());
 		}
 	}
 
