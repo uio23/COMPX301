@@ -28,5 +28,5 @@ This means that at worst, log2R merge cycles will need to take place, but for ev
 This approach requires me to perform an additional comparison for each input line, comparing with the previously written line. Since this is in place of a 'current run length' check for every line merge, and since this algorithm allows for the (albeit unlikely) skip of a merge cycle, I believe that's alright.
 
 Furthermore, this 'previous line' must be initialised such that no input line could be less than it, so I initialise it to an empty String, and reset it to that when switching tapes to write a new run.
-## Accreditation
+## Credit
 As referenced in the appropriate section of the source code, the heapsort functions were implemented with reference to [Interview Cake](https://www.interviewcake.com/concept/java/heapsort)
