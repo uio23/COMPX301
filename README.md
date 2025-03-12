@@ -8,11 +8,17 @@ The algorithm is implemented in a single source code file, `XSort.java`. To comp
 javac XSort.java
 ```
 ## Usage
+`java XSort runLength [2]`
+
 This program can be used in one of two ways:
-1. `cat input.txt|java XSort [runLength (between 64 and 1024 inclusive)] > output.txt`
-^ This will read lines from standard in, and output lexicographically sorted initial runs to standard out as they are generated.
-2. `cat input.txt|java XSort [runLength] 2 > output.txt`
-^ This will perform a balanced 2-way merge of the initial runs and output the final, single, lexicographically sorted run of lines to standard out.
+```
+cat input.txt|java XSort [runLength (between 64 and 1024 inclusive)] > output.txt
+```
+To read lines from standard in, and output lexicographically sorted initial runs to standard out as they are generated.
+```
+cat input.txt|java XSort [runLength] 2 > output.txt
+```
+To perform a balanced 2-way merge of the initial runs and output the final, single, lexicographically sorted run of lines to standard out.
 ## Notable algorithm features
 This algorithm is an external balanced 2-way sort merge.
 
