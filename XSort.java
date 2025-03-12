@@ -28,25 +28,35 @@ public class XSort {
 	 * 							and must be 2.
 	 */
 	public static void main(String[] args) {
+		if (args.length < 1) {
+			System.err.println("0 arguments passed. runLength is a required argument");
+			System.exit(1);
+		}
+
 		int maxRunLength = Integer.parseInt(args[0]);
-		int k = Integer.parseInt(args[1]);
+		int k = 0;
 
 		// Verify passed maxRunLength is withing bounds (64-1024)
-		if (maxRunLength >= 1024) {
+		if (maxRunLength > 1024) {
 			String errorMess = String.format("Initial runs length passed is too long: %d. Must be between 64 and 1024 (inclusive)", maxRunLength);
 			System.err.println(errorMess);
 			System.exit(1);
-		} else if (maxRunLength <= 64) {
+		} else if (maxRunLength < 64) {
 			String errorMess = String.format("Initial runs length passed is too short: %d. Must be between 64 and 1024 (inclusive)", maxRunLength);
 			System.err.println(errorMess);
 			System.exit(1);
 		}
 
-		// Verify passed k is 2
-		if (k != 0 && k != 2) {
-			String errorMess = String.format("This is a 2-way balanced sort merge, k must be 2 (%d given)", k);
-			System.err.println(errorMess);
-			System.exit(1);
+		// If k was passed
+		if (args.length > 1) {
+			k = Integer.parseInt(args[1]);
+
+			// Verify passed k is 2
+			if (k != 2) {
+				String errorMess = String.format("This is a 2-way balanced sort merge, k must be 2 (%d given)", k);
+				System.err.println(errorMess);
+				System.exit(1);
+			}
 		}
 
 		// Pass k so this either outputs to standard out (if k==0) or into two files
@@ -136,8 +146,8 @@ public class XSort {
 	public static void writeRunToTape(String[] run, int runLength, int k) {
 		String tapeName = "tape"+k;
 
-		// Try create a new BufferedWriiter by creating/opening-and-truncating file 'tapeName' in cwd
-		try (BufferedWriter writer = new BufferedWriter(new FileWriter(tapeName))) {
+		// Try create a new BufferedWriter by creating/opening-and-appending-to file 'tapeName' in cwd
+		try (BufferedWriter writer = new BufferedWriter(new FileWriter(tapeName, true))) {
 			// Write every non-empty run line
 			for (int i = 0; i<runLength; i++) {
 				writer.write(run[i]);	
@@ -344,7 +354,15 @@ public class XSort {
 
 		// If only one run was created, all lines are sorted
 		if (runCounter < 2) {
-			outputTape(outputT);
+			// The output file would have been switched at the end of the sinle run creation
+			// So write out the other tape
+			if (outputT == outputT1) {
+				writeOutTape(outputT2);
+			}
+			else {
+				writeOutTape(outputT1);
+			}
+
 			return true;
 		}
 		return false;
@@ -355,7 +373,7 @@ public class XSort {
 	 *
 	 * @param outputT  name of file to read from
 	 */
-	public static void outputTape(String outputT) {
+	public static void writeOutTape(String outputT) {
 		String line;
 
 		try {
