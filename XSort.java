@@ -1,5 +1,6 @@
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -65,6 +66,19 @@ public class XSort {
 		if (k != 0) {
 			mergeRuns();
 		}
+
+		// Delete all temp files
+		/*
+		try {
+			for (int tapeIndex = 1; tapeIndex <= k*2; tapeIndex++) {
+				Files.deleteIfExists(Paths.get("tape"+tapeIndex));
+			}
+		}
+		catch (IOException error) {
+			String errorMess = String.format("Error deleting temp files: %s", error.getMessage());
+			System.err.println(errorMess);
+		}
+		*/
 	}
 
 	/**
@@ -85,53 +99,50 @@ public class XSort {
 		int actualRunLength = maxRunLength;
 		int tapeIndex = 1;
 
-		try {
-			BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+		BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
 
-			// While the last run was full, so there still may be more lines
-			while (actualRunLength == maxRunLength) {
-				actualRunLength = 0;
+		// While the last run was full, so there still may be more lines
+		while (actualRunLength == maxRunLength) {
+			actualRunLength = 0;
 
-				while (actualRunLength < maxRunLength) {
-
-					// Read the next line and if it isn't empty...
-					if ((line = reader.readLine()) != null) {
-						run[actualRunLength] = line;
-
-						// Increment the actual run length
-						actualRunLength++;
-					}
-					else {
-						// Once we read an empty line the stream is over
-						break;
-					}
+			while (actualRunLength < maxRunLength) {
+				line = readFullLine(reader);
+				if (line != null) {
+					run[actualRunLength] = line;
+					actualRunLength++;
 				}
-
-				heapsort(run, actualRunLength);
-
-				// Decide what to do with the run
-				if (k == 0) {
-					// Print run to standard out
-					for (int i = 0; i < actualRunLength; i++) {
-						System.out.println(run[i]);
-					}
-				} else {
-					// Write run to tape
-					writeRunToTape(run, actualRunLength, tapeIndex);
-					tapeIndex++;
-
-					// If the next tape's index would exceed k, go back to first tape
-					if (tapeIndex > k) {
-						tapeIndex = 1;
-					}
+				else {
+					break;
 				}
-			// Possibly create next run...
 			}
+
+			heapsort(run, actualRunLength);
+
+			// Decide what to do with the run
+			if (k == 0) {
+				// Print run to standard out
+				for (int i = 0; i < actualRunLength; i++) {
+					System.out.println(run[i]);
+				}
+			} else {
+				// Write run to tape
+				writeRunToTape(run, actualRunLength, tapeIndex);
+				tapeIndex++;
+
+				// If the next tape's index would exceed k, go back to first tape
+				if (tapeIndex > k) {
+					tapeIndex = 1;
+				}
+			}
+			// Possibly create next run...
+		}
+
+		try {
 			reader.close();
 		}
 		catch (IOException error) {
-			String errorMess = String.format("Exeption occured when reading from standard in: %s", error.getMessage());
-			System.err.printf(errorMess);
+			String errorMess = String.format("Error closing stream: %s", error.getMessage());
+			System.err.println(errorMess);
 		}
 	}
 
@@ -151,8 +162,6 @@ public class XSort {
 			// Write every non-empty run line
 			for (int i = 0; i<runLength; i++) {
 				writer.write(run[i]);	
-				// This writes a newline charecter as defined by the system property line.separator
-				writer.newLine();
 			}
 		} catch (IOException error) {
 			String errorMess = String.format("Exeption occured when writing to tape %s: %s", tapeName, error.getMessage());
@@ -171,6 +180,12 @@ public class XSort {
 		String outputT1 = "tape3";
 		String outputT2 = "tape4";
 		String temp1, temp2;
+
+		// If tape 2 wasn't created, all lines where sorted in one run through heapsort
+		if (!new File(inputT2).exists()) {
+			writeOutTape(inputT1);
+			return;
+		}
 
 		// Perform initial merge of tape1 & tape2
 		boolean sorted = merge(inputT1, inputT2, outputT1, outputT2);
@@ -206,9 +221,8 @@ public class XSort {
 			while (line != null) {
 				if (line.compareTo(previousLine) >= 0) {
 					writer.write(line);
-					writer.newLine();
 					previousLine = line;
-					line = reader.readLine();
+					line = readFullLine(reader);
 				}
 				else {
 					// Current line is lexicographically less than the previous line
@@ -260,8 +274,8 @@ public class XSort {
 			writer2 = new BufferedWriter(new FileWriter(outputT2));
 			writer = writer1;
 
-			line1 = reader1.readLine();
-			line2 = reader2.readLine();
+			line1 = readFullLine(reader1);
+			line2 = readFullLine(reader2);
 
 			while(!inputTEmpty) {
 				runCounter++;
@@ -297,12 +311,10 @@ public class XSort {
 							break;
 						}
 						writer.write(line1);
-						// This writes a newline charecter as defined by the system property line.separator
-						writer.newLine();
 
 						previousLine = line1;
 						// Read the next line from the first input file
-						line1 = reader1.readLine();
+						line1 = readFullLine(reader1);
 					}
 					// Same logic
 					// ...applied to if the line from the second input file is lexicograpgically less 
@@ -313,16 +325,13 @@ public class XSort {
 							break;
 						}
 						writer.write(line2);
-						writer.newLine();
 
 						previousLine = line2;
-						line2 = reader2.readLine();
+						line2 = readFullLine(reader2);
 					}
 					else {
 						// Code should break out before this point
 						// but as a redundancy, ...need to start new run
-						// TODO: REMOVE
-						System.err.println("cat");
 						break;
 					}
 					// Compare the two current lines again...
@@ -349,7 +358,8 @@ public class XSort {
 			reader2.close();
 		}
 		catch (IOException error) {
-			System.err.println(error.getMessage());
+			String errorMess = String.format("An error occured during a merge from %s & %s into %s & %s: %s", inputT1, inputT2, outputT1, outputT2, error.getMessage());
+			System.err.println(errorMess);
 		}
 
 		// If only one run was created, all lines are sorted
@@ -374,14 +384,16 @@ public class XSort {
 	 * @param outputT  name of file to read from
 	 */
 	public static void writeOutTape(String outputT) {
-		String line;
+		int charInt;
+		char dataChar;
 
 		try {
 			BufferedReader reader = new BufferedReader(new FileReader(outputT));
 
-			// Read the next line and if it isn't empty...
-			while ((line = reader.readLine()) != null) {
-				System.out.println(line);
+			// Print charecter from file until stream ends
+			while ((charInt = reader.read()) != -1) {
+				dataChar = (char)charInt;
+				System.out.print(dataChar);
 			}
 			reader.close();
 		}
@@ -390,6 +402,51 @@ public class XSort {
 			System.err.println(errorMess);
 		}
 	}
+	
+	/**
+	 * Returns the next line up to and including \n or the end of the stream
+	 * from <code>reader</code>.
+	 *
+	 * @param reader  stream to read charecters from
+	 * @return				<code>null</code> if there are no more charecters in <code>reader</code>;
+	 * 								the read line otherwise;
+	 */
+	public static String readFullLine(BufferedReader reader) {
+		// Count charecter to know if to return null instead of ""
+		int charCount = 0;
+
+		int charInt;
+		char lineChar;
+		String line = "";
+
+		try {
+			while ((charInt = reader.read()) != -1) {
+				lineChar = (char)charInt;	
+				line += lineChar;
+				charCount++;
+
+				// String complete with \n
+				// This approach keeps all the characters in a line
+				// including \r
+				if (lineChar == '\n') {
+					break;
+				}
+			}
+		}
+		catch (IOException error) {
+			String errorMess = String.format("Exeption occured when reading with BufferedReader: %s", error.getMessage());
+			System.err.printf(errorMess);
+		}
+
+		// If no lines were read, return null
+		if (charCount == 0) {
+			return null;
+		}
+		else {
+			return line;
+		}
+	}
+
 
 	//		----- Heapsort -----
 	//		Functions implemented with reference to: https://www.interviewcake.com/concept/java/heapsort
