@@ -122,7 +122,7 @@ public class XSort {
 			if (k == 0) {
 				// Print run to standard out
 				for (int i = 0; i < actualRunLength; i++) {
-					System.out.println(run[i]);
+					System.out.print(run[i]);
 				}
 			} else {
 				// Write run to tape
