@@ -23,7 +23,7 @@ To perform a balanced 2-way merge of the initial runs and output the final, sing
 This algorithm is an external balanced 2-way sort merge.
 
 Instead of counting the run length for every merge to a particular output tape, my algorithm merges runs into a run on a tape until the lexicographically smaller of the lines from the two input files is smaller than the previously written line. This indicates that a run boundary that cannot be crossed has been reached, and a new run must be created in the next output tape, after flushing values from the other input tape, until the same boundary condition is met there.
-This means that at worst, log2R merge cycles will need to take place, but for every run that happens to lexicographically follow on from the previous run in ascending order, the number of output runs is reduced by 1/2, such that if in some 2 input tapes with r runs, r/2 runs follow the preceding run, then the number of runs in the following cycle will be r/2-(1/2*r/2) = r/2-r/4 = r/4, skipping a merge cycle!
+This means that at worst, log2(R) merge cycles will need to take place, but for every run that happens to lexicographically follow on from the previous run in ascending order, the number of output runs is reduced by 1/2, such that if in some 2 input tapes with r runs, r/2 runs follow the preceding run, then the number of runs in the following cycle will be r/2-(1/2*r/2) = r/2-r/4 = r/4, skipping a merge cycle!
 
 This approach requires me to perform an additional comparison for each input line, comparing with the previously written line. Since this is in place of a 'current run length' check for every line merge, and since this algorithm allows for the (albeit unlikely) skip of a merge cycle, I believe that's alright.
 

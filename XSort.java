@@ -5,6 +5,8 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 
 /**
  * An external balanced 2-wa sort merge implementation for sorting <code>String</code> lines read from standard in.
@@ -68,7 +70,6 @@ public class XSort {
 		}
 
 		// Delete all temp files
-		/*
 		try {
 			for (int tapeIndex = 1; tapeIndex <= k*2; tapeIndex++) {
 				Files.deleteIfExists(Paths.get("tape"+tapeIndex));
@@ -78,7 +79,6 @@ public class XSort {
 			String errorMess = String.format("Error deleting temp files: %s", error.getMessage());
 			System.err.println(errorMess);
 		}
-		*/
 	}
 
 	/**
