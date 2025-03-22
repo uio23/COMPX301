@@ -69,7 +69,8 @@ public class XSort {
 			mergeRuns();
 		}
 
-		// Delete all temp files
+		// Delete all temp files, comment out this block to disable
+		// ########################################################
 		try {
 			for (int tapeIndex = 1; tapeIndex <= k*2; tapeIndex++) {
 				Files.deleteIfExists(Paths.get("tape"+tapeIndex));
@@ -79,6 +80,7 @@ public class XSort {
 			String errorMess = String.format("Error deleting temp files: %s", error.getMessage());
 			System.err.println(errorMess);
 		}
+		// ########################################################
 	}
 
 	/**
