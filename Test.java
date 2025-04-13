@@ -14,6 +14,9 @@ public class Test {
 		String outputLine = outputReader.readLine();
 		String diog = "";
 		boolean isIssue = false;
+		String[] outputArr;
+		String reportedLine;
+		int reportedLineIndex;
 
 		while (sourceLine != null) {
 			if (isIssue) {
@@ -46,9 +49,18 @@ public class Test {
 			}
 
 			// Otherwise, proccess output line
-			String[] outputArr = outputLine.split(" ", 2);
-			String reportedLine = outputArr[1];
-			int reportedLineIndex = Integer.valueOf(outputArr[0]);
+			outputArr = outputLine.split(" ", 2);
+			try {
+				reportedLine = outputArr[1];
+				reportedLineIndex = Integer.valueOf(outputArr[0]);
+			}
+			catch (ArrayIndexOutOfBoundsException e) {
+				isIssue = true;
+				diog += "--Malformatted output--" + "\n";
+				diog += outputLine + "\n";
+				sourceLine = sourceReader.readLine();
+				continue;
+			}
 			// +1 because our KMPSearch should output 1-based indexing
 			int indexInReportedLine = reportedLine.indexOf(pattern) + 1;
 
