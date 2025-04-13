@@ -61,7 +61,7 @@ public class KMPSearch {
 			if (PIndex == P) {
 				// Increment 1 because first charecter should be at index 1
 				TIndex++;
-				System.out.println(TIndex + ": " + text);
+				System.out.println(TIndex + " " + text);
 				return;
 			}
 		}
