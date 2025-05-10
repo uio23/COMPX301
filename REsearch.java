@@ -1,14 +1,13 @@
 import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 
 public class REsearch {
-	// Define set of dynamically sized arrays for FSM representation
-	private static ArrayList<String> type = new ArrayList<String>();
-	private static ArrayList<Integer> next1 = new ArrayList<Integer>();
-	private static ArrayList<Integer> next2 = new ArrayList<Integer>();
-	private static ArrayList<Boolean> visited = new ArrayList<Boolean>();
+	private static String filename;
+	private static String[] lines;
+	private static FSM fsm = new FSM();
 
 	public static void main(String[] args) {
 		// Verfiy a single argument is provided
@@ -17,15 +16,125 @@ public class REsearch {
 			System.exit(1);
 		}
 		// ...it is the filename
-		String filename = args[0];
+		filename = args[0];
 
 		// populate the FSM arrays by reading FSM specification from standard in
 		readFSM();
+		readFile();
+		outputMatchLines();
+	}
 
-		System.out.println(type);
-		System.out.println(next1);
-		System.out.println(next2);
-		System.out.println(visited);
+	private static void outputMatchLines() {
+		int base;
+		// For every line in the file
+		for (String line : lines) {
+			base = 0;
+			// Traverse the FSM from every character in the line
+			// until the FSM is fully traversed starting at some character
+			// or the line ends
+			while(!traverseFSM(line, base)) {
+				base++;
+				if (base >= line.length()) {
+					break;
+				}
+			}
+		}
+	}
+
+	private static boolean traverseFSM(String string, int step) {
+		int next1, next2;
+		String ch;
+		int loc;
+
+		DequeueWithSCAN dque = new DequeueWithSCAN();
+		// No states are visited to start with 
+		boolean[] visited = new boolean[fsm.size()];
+
+		// Start at the zero state
+		dque.push(0);
+		while (true) {
+			// Get a possible current state
+			loc = dque.pop();
+
+			// If one does not exist
+			if (loc == -1) {
+				// If there are no possible next states, the character
+				// cannot be consumed and so we failed
+				if (dque.size() <= 0) {
+					return false;
+				}
+
+				// Consume character
+				step++;
+
+				// If the string runs out, we cannot consider the possible next
+				// states, so we failed
+				if (step >= string.length()) {
+					return false;
+				}
+
+				// Reset visited states for next character
+				visited = new boolean[fsm.size()];
+
+				// Consider the possible next states as the possible current states
+				continue;
+			}
+
+			// If we already considered this state, 
+			// do not consider it again
+			if (visited[loc] == true) {
+				continue;
+			}
+
+			// Otherwise, ee are visiting this state
+			visited[loc] = true;
+			next1 = fsm.getNext1(loc);
+			next2 = fsm.getNext2(loc);
+			ch = fsm.getCh(loc);;
+
+			// If its a branch state, push on where we could be instead
+			if (ch.equals("BR")) {
+				dque.push(next1);
+
+				// Only push on next2 if its a different state
+				if (next1 != next2) {
+					dque.push(next2);
+				}
+			}
+			// Otherwise, match wildcard or try match literal
+			else if (ch.equals("WC") || ch.charAt(0) == string.charAt(step)) {
+				// If its a match, a possible next state is this state's next state
+
+				// If that's the final state, output it and we are done
+				if (fsm.isFinal(next1)) {
+					System.out.println(string);
+					return true;
+				}
+				
+				// Otherwise add it as a possible next state
+				// (next1 and next2 are the same for a literal bc its not a branching state)
+				dque.enqueue(next1);
+			}
+		}
+	}
+
+	private static void readFile() {
+		ArrayList<String> linesList = new ArrayList<String>();
+
+		try(BufferedReader reader = new BufferedReader(new FileReader(filename))) {
+			String line = reader.readLine();
+			while (line != null) {
+				linesList.add(line);	
+				line = reader.readLine();
+			}
+		}
+		catch (IOException error) {
+			String errorMess = String.format("Error reading from file: %s", error.getMessage());
+			System.err.println(errorMess);
+			System.exit(1);
+		}
+
+		lines = linesList.toArray(new String[0]);
 	}
 
 	private static void readFSM() {
@@ -35,15 +144,10 @@ public class REsearch {
 		try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
 			// Every line is a column of the FSM set of arrays
 			line = reader.readLine();	
-			while (line != null) {
-				// Add values from line to their corresponding arrays
+			for (int i = 0; line != null; i++, line = reader.readLine()) {
 				values = line.split(",");
-				type.add(values[1]);
-				next1.add(Integer.valueOf(values[2]));
-				next2.add(Integer.valueOf(values[3]));
-				visited.add(false);
-
-				line = reader.readLine();
+				// Add values from line to their corresponding arrays
+				fsm.addState(i, values[1], Integer.valueOf(values[2]), Integer.valueOf(values[3]));
 			}
 
 		} catch (IOException e) {
@@ -64,19 +168,23 @@ public class REsearch {
 class DequeueWithSCAN {
 	// Track of head for push/pop and tail for enqueue
 	Node head, tail;
+	int nodeCounter;
 
 	public DequeueWithSCAN() {
 		// Insert SCAN node with the negative value -1
 		head = new Node(-1, null, null);
 		tail = head;
+		nodeCounter = 0;
 	}
 
 	// TODO: Delete method
 	public void disp() {
+		Node ogTail = tail;
 		while (tail != null) {
 			System.out.print(tail.value + "->");
 			tail = tail.next;
 		}
+		tail = ogTail;
 		System.out.println();
 	}
 
@@ -97,6 +205,7 @@ class DequeueWithSCAN {
 		// Make node new head node
 		head.next = newNode;
 		head = newNode;
+		nodeCounter++;
 	}
 
 	/**
@@ -116,6 +225,7 @@ class DequeueWithSCAN {
 		// Make node the new tail node
 		tail.prev = newNode;
 		tail = newNode;
+		nodeCounter++;
 	}
 
 	/**
@@ -131,18 +241,28 @@ class DequeueWithSCAN {
 
 		// If scan value is popped, add it to the bottom of the dequeue
 		if (value == -1) {
-			tail = new Node(-1, null, tail);
+			Node b = new Node(-1, null, tail);
+			tail.prev = b;
+			tail = b;
 
 			// If this is now the only node in the dequeue, it should also be the head
 			if (head == null) {
 				head = tail;
 			}
 		}
+		// Reduce size of dequeue if a none negative value was popped
+		else {
+			nodeCounter--;
+		}
 		// If the dequeue had more than one node, the new new head is still pointing to the old head
 		// Remove this pointer
 		head.next = null;
 
 		return value;
+	}
+
+	public int size() {
+		return nodeCounter;
 	}
 
 	/**
@@ -158,5 +278,47 @@ class DequeueWithSCAN {
 			this.next = next;
 			this.prev = prev;
 		}
+	}
+}
+
+class FSM {
+	// Define set of dynamically sized arrays for FSM representation
+	private ArrayList<String> chArr;
+	private ArrayList<Integer> next1Arr = new ArrayList<Integer>();
+	private ArrayList<Integer> next2Arr = new ArrayList<Integer>();
+
+	public FSM() {
+		chArr =  new ArrayList<String>();
+		next1Arr = new ArrayList<Integer>();
+		next2Arr = new ArrayList<Integer>();
+	}
+	
+	public void addState(int stateN, String ch, int next1, int next2) {
+		chArr.add(stateN, ch);
+		next1Arr.add(stateN, next1);
+		next2Arr.add(stateN, next2);
+	}
+
+	public String getCh(int stateN) {
+		return chArr.get(stateN);
+	}
+
+	public int getNext1(int stateN) {
+		return next1Arr.get(stateN);
+	}
+
+	public int getNext2(int stateN) {
+		return next2Arr.get(stateN);
+	}
+
+	public int size() {
+		return chArr.size();
+	}
+
+	/**
+	 * Final state is the next state after the states of the FSM
+	 */
+	public boolean isFinal(int stateN) {
+		return stateN == chArr.size();
 	}
 }
