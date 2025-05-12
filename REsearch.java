@@ -445,13 +445,12 @@ class FSM {
 	}
 
 	/**
-	 * Checks whether the passed state number is equal to the length of this fsm, which would indicate
-	 * that it is the state after the last state in this fsm and so the final state.
+	 * Checks whether the passed state number is -1, which would indicate it is the final state.
 	 *
-	 * @return  true if the passed state number is the index of the final state;
+	 * @return  true if the passed state number is -1;
 	 *  				false otherwise
 	 */
 	public boolean isFinal(int stateN) {
-		return stateN == chArr.size();
+		return stateN == -1;
 	}
 }
