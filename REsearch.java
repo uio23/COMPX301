@@ -198,7 +198,7 @@ public class REsearch {
 				continue;
 			}
 
-			// Otherwise, consider this state
+			// Consider this state
 			visited[loc] = true;
 			ch = fsm.getCh(loc);
 			next1 = fsm.getNext1(loc);
@@ -213,21 +213,22 @@ public class REsearch {
 					dque.push(next2);
 				}
 			}
-			// Otherwise, match wildcard or try match literal
+			// Otherwise, match the wildcard or try match the literal
 			else if (ch.equals("WC") || ch.charAt(0) == string.charAt(point)) {
 				// If its a match, a possible next state is this state's next state
-
-				// If that's the final state, 
-				// we can reach the final state in the passed string
-				// starting at the passed base,
-				// and this is success
-				if (fsm.isFinal(next1)) {
-					return true;
-				}
-				
-				// Otherwise add it as a possible next state
 				// (next1 and next2 are the same for a literal because its not a branching state)
 				dque.enqueue(next1);
+			}
+			// If literal did not match, consider next possible current state
+			else {
+				continue;
+			}
+
+			// Otherwise, if a new possible current or next state is the final state,
+			// we can reach the final state given the string and base,
+			// and this is success
+			if (fsm.isFinal(next1) || fsm.isFinal(next2)) {
+				return true;
 			}
 		}
 	}
