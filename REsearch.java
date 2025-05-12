@@ -5,26 +5,24 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 
 /**
- * A regular expression searcher that builds a FSM by reading it states as lines from
- * standard in, and searches through the lines of a specified file for matches with
- * the regular expression specified in the FSM, outputing each line that has such a
- * match to standard out.
+ * A regular expression searcher that loads a FSM from standrad in and outputs to standard out
+ * the lines from a specified file that contain a match for the regular expression represented 
+ * in the FSM.
  *
  * @author Oleksandr Kashpir ID:1637705
  */
 public class REsearch {
+		// Make use of class fields to avoid passing around variables
 	private static String filename;
 	private static String[] lines;
 	private static FSM fsm;
-
 	private static final int STATE_ZERO = 0;
+	private static final int SCAN = -2;
 
 	/**
-	 * Verifies that an argument has been passed and takes it as the <code>filename</code>.
-	 * By making function calls, performs the following steps:
-	 * 	1. Instantiates the <code>fsm</code> by reading states from standard in
-	 * 	2. Reads lines of the file specified by the filename into <code>lines</code>
-	 * 	3. Outputs all of these lines that match the regexp represented in the <code>fsm</code>
+	 * Accepts a single filename argument. Through function calls:
+	 * loads a FSM into <code>fsm</code>, reads lines from the specified file and
+	 * outputs all of these lines with a match for the regular expression represented in <code>fsm</code>.
 	 *
 	 * 	@param args  the command-line arguments passed to this program
 	 */
@@ -36,16 +34,15 @@ public class REsearch {
 		}
 		filename = args[0];
 
-		// Make use of class fields to avoid passing around variables
 		loadFSM();
 		readFile();
 		outputMatchLines();
 	}
 
 	/**
-	 * Creates a new <code>FSM</code> instance and populates it with states specified
-	 * by the lines of standard in, with the format: 
-	 * state number, state character, first next state, second next state.
+	 * Creates a new <code>FSM</code> instance in <code>fsm</code> and populates it 
+	 * with states specified by lines from standard in, with the format: 
+	 * state number,state character,first next state,second next state.
 	 */
 	private static void loadFSM() {
 		String line;
@@ -57,17 +54,18 @@ public class REsearch {
 		fsm = new FSM();
 
 		try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
-			// Every line is a column in the FSM set of arrays
+			// Every line is a state in the fsm
 			line = reader.readLine();	
 			while (line != null) {
 				// Unpack the line
 				values = line.split(",");
+
 				stateN = Integer.valueOf(values[0]);
 				ch = values[1];
 				next1 = Integer.valueOf(values[2]);
 				next2 = Integer.valueOf(values[3]);
 
-				// Add values from line in a new state
+				// Add values from line into a new state
 				fsm.insertState(stateN, ch, next1, next2);
 
 				line = reader.readLine();
@@ -80,13 +78,12 @@ public class REsearch {
 	}
 
 	/**
-	 * Reads the lines of a file specified by the filename passed to this program,
-	 * and stores them in a class field
+	 * Reads the lines of a file specified by <code>filename</code>,
+	 * and stores them in <code>lines</code>.
 	 */
 	private static void readFile() {
 		ArrayList<String> linesList = new ArrayList<String>();
 
-		// BufferedReader will close after try block
 		try(BufferedReader reader = new BufferedReader(new FileReader(filename))) {
 			String line = reader.readLine();
 
@@ -97,8 +94,8 @@ public class REsearch {
 			}
 		}
 		catch (IOException error) {
-			System.err.printf("Error reading from file: %s", error.getMessage());
 			// Don't necessarily have to exit if some lines fail to read
+			System.err.printf("Error reading from file: %s", error.getMessage());
 		}
 
 		// Convert and store lines ArrayList as an array of Strings
@@ -106,9 +103,8 @@ public class REsearch {
 	}
 
 	/**
-	 * Searches every line in the lines read from the specified file for a
-	 * match with the regexp represented in the <code>fsm</code>, and outputs
-	 * every line that matches to standard out.
+	 * Searches <code>lines</code> for those that match with the regexp represented in <code>fsm</code>, 
+	 * and outputs every line that matches to standard out.
 	 */
 	private static void outputMatchLines() {
 		int base;
@@ -118,7 +114,7 @@ public class REsearch {
 			base = 0;
 			fsmTraversed = false;
 
-			// Try traverse the fsm at an incrementing index in this line
+			// Try traverse the fsm from an incrementing base in this line
 			// until the line runs out
 			do {
 				fsmTraversed = traverseFSM(line, base);
@@ -139,96 +135,87 @@ public class REsearch {
 	}
 
 	/**
-	 * Attempts to find a path through the <code>fsm</code> given a sequence
-	 * of characters and a base in it. Uses a custom Deque for this algorythm.
+	 * Attempts to find a path through the <code>fsm</code> given a <code>String</code>
+	 * and a starting base in it. Uses a custom <code>DequeWithSCAN</code> for this algorythm.
 	 *
-	 * @return  true if <code>fsm</code> could be traversed from the specified base;
-	 * 					false otherwise
+	 * @param string  Sequence of plaintext characters to use for traversal
+	 * @param base    starting index in <code>string</code>
+	 * @return  			true if <code>fsm</code> could be traversed from the specified base;
+	 * 								false otherwise
 	 */
 	private static boolean traverseFSM(String string, int base) {
 		String ch;
 		int next1, next2;
-		int loc;
+		int stateN;
 		// Point starts at base
 		int point = base;
 
-		DequeWithSCAN dque = new DequeWithSCAN();
+		DequeWithSCAN deque = new DequeWithSCAN(SCAN);
 		// Track visited states in an array with a boolean for
 		// each state in the fsm
 		// No states are visited to start with 
 		boolean[] visited = new boolean[fsm.size()];
 
 		// Start at the zero state
-		dque.push(STATE_ZERO);
+		deque.push(STATE_ZERO);
 		while (true) {
 			// Get a possible current state
-			loc = dque.pop();
+			stateN = deque.pop();
 
-			// If no unconcidered possible current states exist
-			if (loc == -1) {
-				// Possible next states are the new possible current states
+			// If its the final state, success
+			// ...because the fsm can be traversed from the given base in the given string.
+			if (stateN == -1) {
+				return true;		
+			}
 
-				// If there are no new possible current states, 
-				// the character could not be consumed, 
-				// so there is no way through and this is failure
-				if (dque.size() <= 0) {
+			// If the SCAN value was popped...
+			if (stateN == SCAN) {
+				// Possible next states are now the possible current states
+
+				// If the deque has no Nodes but the SCAN node
+				if (deque.size() <= 1) {
+				// There are no new possible current states, so this is failure
+				// ...because the character at point cannot be consumed in any valid way
 					return false;
 				}
 
-				// Consume character and point to next one
+				// Consume character
 				point++;
-
-				// If the string runs out, there is no next character to 
-				// consider the new possible current states for,
-				// so there is no way through and this is failure
-				if (point >= string.length()) {
-					return false;
-				}
 
 				// Reset visited states for next character
 				visited = new boolean[fsm.size()];
 
-				// Consider new possible current states for new character
+				// Consider new possible current states with next character
 				continue;
 			}
 
 			// If this state was already visited as a possible current state
 			// do not consider it again
-			if (visited[loc] == true) {
+			if (visited[stateN] == true) {
 				continue;
 			}
 
 			// Consider this state
-			visited[loc] = true;
-			ch = fsm.getCh(loc);
-			next1 = fsm.getNext1(loc);
-			next2 = fsm.getNext2(loc);
+			visited[stateN] = true;
+			ch = fsm.getCh(stateN);
+			next1 = fsm.getNext1(stateN);
+			next2 = fsm.getNext2(stateN);
 
 			// If its a branch state, push on where we could be instead
 			if (ch.equals("BR")) {
-				dque.push(next1);
+				deque.push(next1);
 
-				// Only push on next2 if its a different state number
+				// Only push on next2 if its a different state
 				if (next1 != next2) {
-					dque.push(next2);
+					deque.push(next2);
 				}
 			}
-			// Otherwise, match the wildcard or try match the literal
-			else if (ch.equals("WC") || ch.charAt(0) == string.charAt(point)) {
-				// If its a match, a possible next state is this state's next state
-				// (next1 and next2 are the same for a literal because its not a branching state)
-				dque.enqueue(next1);
-			}
-			// If literal did not match, consider next possible current state
-			else {
-				continue;
-			}
-
-			// Otherwise, if a new possible current or next state is the final state,
-			// we can reach the final state given the string and base,
-			// and this is success
-			if (fsm.isFinal(next1) || fsm.isFinal(next2)) {
-				return true;
+			// Otherwise, provided that a character is available, match a wildcard or try match a literal
+			else if (point < string.length()) {
+				if (ch.equals("WC") || ch.charAt(0) == string.charAt(point)) {
+					// If its a match, this state's next state (1 & 2 same for literal) is a possible next state
+					deque.enqueue(next1);
+				}
 			}
 		}
 	}
@@ -236,45 +223,44 @@ public class REsearch {
 
 
 /**
- * A deque implementation that stores positive integers split by a SCAN value of -1.
+ * A deque implementation that stores integers split by a SCAN value.
  * The values are stored in doubly linked <code>Node</code> instances. There is always 
- * at least one <code>Node</code> in this deque, that stores the SCAN value (-1),
+ * at least one <code>Node</code> in this deque, that stores the SCAN value,
  * and it is restored to the tail of the deque when popped off.
  * 
  * @author Oleksandr Kashpir ID:1637705
  */
 class DequeWithSCAN{
-	// Track head for push/pop and tail for enqueue
-	Node head, tail;
-	int nodeCounter;
+	private Node head, tail;
+	private int nodeCounter;
+	private int SCAN;
 
-	public DequeWithSCAN() {
-		// Insert SCAN node with the negative value -1
-		head = new Node(-1, null, null);
+	/**
+	 * Initializes a new instance of <code>DequeWithSCAN</code>, and creates
+	 * the SCAN <code>Node</code> with the specified SCAN value, making it the head and tail of
+	 * the this deque
+	 *
+	 * @param scan  value to use for SCAN <code>Node</code>
+	 */
+	public DequeWithSCAN(int scan) {
+		SCAN = scan;
+		// Insert SCAN node with the scan value
+		head = new Node(SCAN, null, null);
 		tail = head;
-		nodeCounter = 0;
-	}
-
-	// TODO: Delete method
-	public void disp() {
-		Node ogTail = tail;
-		while (tail != null) {
-			System.out.print(tail.value + "->");
-			tail = tail.next;
-		}
-		tail = ogTail;
-		System.out.println();
+		nodeCounter = 1;
 	}
 
 	/**
 	 * Pushes a new <code>Node</code> containing the passed <code>value</code> 
-	 * on to the top of this deque, if the value is positive.
+	 * on to the top of this deque.
+	 * The value must not be the reserved SCAN value of this deque, otherwise it will 
+	 * not be pushed on.
 	 * 
-	 * @param value  the positive integer value to push
+	 * @param value  the integer value to push
 	 */
 	public void push(int value) {
-		// Verify value is positive
-		if (value < 0) {
+		// Verify value is not SCAN
+		if (value == SCAN) {
 			return;
 		}
 
@@ -289,13 +275,15 @@ class DequeWithSCAN{
 
 	/**
 	 * Enqueues a new <code>Node</code> containing the passed <code>value</code>
-	 * to the end of this deque, if the value is positive.
+	 * to the end of this deque.
+	 * The value must not be the reserved SCAN value of this deque, otherwise it will 
+	 * not be enqueued.
 	 * 
-	 * @param value  the positive integer value to enqueue
+	 * @param value  the integer value to enqueue
 	 */
 	public void enqueue(int value) {
-		// Verify value is positive
-		if (value < 0) {
+		// Verify value is not SCAN
+		if (value == SCAN) {
 			return;
 		}
 
@@ -309,19 +297,19 @@ class DequeWithSCAN{
 	}
 
 	/**
-	 * Deletes the top <code>Node</code> of this deque and returns
-	 * its value. Replaces SCAN node before returning its value (-1).
+	 * Deletes the head <code>Node</code> of this deque and returns
+	 * its value. Replaces SCAN node to the tail before returning its value.
 	 * 
-	 * @return  the value of the top <code>Node</code> of this dequeue
+	 * @return  the value of the top <code>Node</code> of this deque
 	 */
 	public int pop(){
 		// Store head value and forget its pointer
 		int value = head.value;
 		head = head.prev;
 
-		// If scan node is popped, reinstatiate it at the end of the deque
-		if (value == -1) {
-			Node b = new Node(-1, null, tail);
+		// If scan node is popped, reinstatiate it at the tail of the deque
+		if (value == SCAN) {
+			Node b = new Node(SCAN, null, tail);
 			tail.prev = b;
 			tail = b;
 
@@ -330,7 +318,7 @@ class DequeWithSCAN{
 				head = tail;
 			}
 		}
-		// Reduce size of deque if something other than the scan node is popped
+		// Decrease Node count if an actual value is popped instead
 		else {
 			nodeCounter--;
 		}
@@ -343,12 +331,22 @@ class DequeWithSCAN{
 	}
 
 	/**
-	 * Returns the number of positive integers stored in this dque
+	 * Returns the number of positive integers stored in this deque
 	 *
 	 * @return  the number of positive integers stored in this deque
 	 */
 	public int size() {
 		return nodeCounter;
+	}
+
+	/**
+	 * Returns the SCAN value this deque uses. 
+	 * (Not needed by my implementation but just a thought)
+	 *
+	 * @return  the SCAN value this deque uses
+	 */
+	public int getSCAN() {
+		return SCAN;
 	}
 
 
@@ -396,7 +394,7 @@ class FSM {
 	 * in the respective underlying <code>ArrayList</code>s.
 	 *
 	 * @param stateN  index to insert state into
-	 * @param ch      literal/special of the state
+	 * @param ch      literal/special <code>String</code> of the state
 	 * @param next1   first next possible state
 	 * @param next2   second next possible state
 	 */
