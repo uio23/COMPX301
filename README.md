@@ -20,4 +20,5 @@ cat FSMlines.txt | java REcompile filename.txt
 ```
 To instead pipe them from a text file.
 ## Comments
-My implementation of a Deque is developed to work around a persistent SCAN node storing a SCAN value, which is defined by the constructor upon initialization. In my searcher, I chose to instantiate my DequeWithSCAN with a SCAN value of -2, as -1 should be treated as a state number (representing the final state by agreement between my and Hiran).
+My implementation of a Deque is developed to work around a persistent SCAN node storing a SCAN value, which is defined by the constructor upon initialization. In my searcher, I chose to instantiate my DequeWithSCAN with a SCAN value of -2, as -1 should be treated as a state number (representing the final state by agreement between my and my partner Hiran).</br>
+Another significant assumption my searcher makes about the FSM it receives is that a literal or WC cannot branch, meaning that both of its next states are the same. Me and Hiran discussed this assumption and we are in agreement on it.
