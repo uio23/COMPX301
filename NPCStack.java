@@ -37,7 +37,7 @@ public class NPCStack {
 		Arrays.sort(boxes);
 
 		// Ensure that the annealing parameters are withing their limits
-		if (initialTemp <= 0 || initialTemp > boxes.length) {
+		if (initialTemp <= 0 || initialTemp > boxes.length / 3) {
 			System.err.println("initialTemp must be 0 < initialTemp <= 3*(N of boxes)");
 			System.exit(1);
 		}
@@ -50,21 +50,23 @@ public class NPCStack {
 		displayBitmap(bitmap);
 		display(bitmap, boxes);
 		BitmapManager.removeDuplicateBoxes(bitmap, boxes);
+		BitmapManager.makeChanges(bitmap, boxes, (int) bitmap.length / 6);
 		displayBitmap(bitmap);
 		display(bitmap, boxes);
+		System.out.println("performing annealing");
 		annealing(bitmap, boxes, initialTemp, coolingRate);
 		displayBitmap(bitmap);
 		display(bitmap, boxes);
 	}
 
-	private static void displayBitmap(int[] bitmap) {
+	public static void displayBitmap(int[] bitmap) {
 		for(int bit : bitmap) {
 			System.out.print(bit);
 		}
 		System.out.println();
 	}
 	
-	static private void display(int[] bitmap, Box[] boxes) {
+	static public void display(int[] bitmap, Box[] boxes) {
 		Box box;
 		int height = 0;
 
@@ -76,7 +78,7 @@ public class NPCStack {
 		}
 
 		// Display every box in the bitmap from the highest one down, alongside the high at that level
-		for (int i = bitmap.length - 1; i >= 0;  i++) {
+		for (int i = bitmap.length - 1; i >= 0;  i--) {
 			if (bitmap[i] == 1) {
 				box = boxes[i];
 				System.out.format("%d %d %d %d\n", box.w, box.l, box.h, height);
@@ -86,42 +88,17 @@ public class NPCStack {
 	}
 
 	private static void annealing(int[] bitmap, Box[] boxes, int temp, double cooling) {
-		int changesN;
-		int changedBit;
-		Random random = new Random();
 		int[] changedBitmap = bitmap.clone();
-		ArrayList<Integer> changedBits;
-		while (temp > 0) {
-			changesN = 0;
-			changedBits = new ArrayList<Integer>(); 
+		double updatedTemp = temp;
+		while (updatedTemp > 0) {
+			BitmapManager.makeChanges(changedBitmap, boxes, (int)updatedTemp);
 
-			// Make temp many changes
-			while(changesN < Math.ceil(temp)) {
-				// Change different bits every time
-				do {
-					changedBit = random.nextInt(bitmap.length);
-				}
-				while (changedBits.contains(changedBit));
-
-				// Flip bit
-				changedBitmap[changedBit] = (bitmap[changedBit] - 1) * -1;
-
-				// Undo invalid changes
-				if (!validateBitmap(changedBitmap)) {
-					// Flip bit back
-					changedBitmap[changedBit] = (changedBitmap[changedBit] - 1) * -1;
-					continue;
-				}
-				changesN++;
-				changedBits.add(changedBit);
-			}
-
-			if (evaluateBitmap(changedBitmap) > evaluateBitmap(bitmap)) {
-				System.out.println("HEY");
+			if (BitmapManager.envaluateBitmap(changedBitmap, boxes) > BitmapManager.envaluateBitmap(bitmap, boxes)) {
+				System.out.println("IMPROVMENT");
 				bitmap = changedBitmap;
 			}
 
-			temp = temp - cooling;
+			updatedTemp = updatedTemp - cooling;
 		}
 	}
 
@@ -298,6 +275,7 @@ class BitmapManager {
 				// If more than one rotation of a box is included in the bitmap,
 				// this bitmap contains a repeating box and is invalid
 				if (rotationsSum > 1) {
+					System.out.println("should never happen");
 					return false;
 				}
 				// Reset the rotation sum for the new box
@@ -340,5 +318,76 @@ class BitmapManager {
 		}
 
 		return score;
+	}
+	
+	private static int[] generateSelections(int n) {
+		Random random = new Random();
+
+		int [] selections = new int[n];
+		int temp, index;
+		for (int i = 0; i < n; selections[i] = i++);
+
+		// Shuffle
+		for (int i = 0; i < n; i++) {
+			index = random.nextInt(n);
+			temp = selections[0];
+			selections[0] = selections[index];
+			selections[index] = temp;
+		}
+
+		return selections;
+	}
+
+	private static boolean makeChange(int[] bitmap, Box[] boxes, int boxIndex) {
+		int selectionIndex = 0;
+		int[] selections = generateSelections(3);
+		for (int i : selections) {
+			System.out.print(i);
+		}
+		int r0 = bitmap[boxIndex];
+		int r1 = bitmap[boxIndex+1];
+		int r2 = bitmap[boxIndex+2];
+
+		while (selectionIndex < 3) {
+			int bitIndex = boxIndex + selections[selectionIndex];
+			int flippedBit = (bitmap[bitIndex] - 1) * -1;
+
+			// Remove all rotations
+			bitmap[boxIndex] = bitmap[boxIndex+1] = bitmap[boxIndex+2] = 0;
+
+			// Apply flipped bit
+			bitmap[bitIndex] = flippedBit; 
+
+			System.out.println("Attempting to change bit " + bitIndex);
+			NPCStack.display(bitmap, boxes);
+			NPCStack.displayBitmap(bitmap);
+			if (validateBitmap(bitmap, boxes)) {
+				return true;
+			}
+			selectionIndex++;
+			bitmap[boxIndex] = r0;
+			bitmap[boxIndex+1] = r1;
+			bitmap[boxIndex+2] = r2;
+		}
+
+		return false;
+	}
+
+
+	public static void makeChanges(int[] bitmap, Box[] boxes, int changesN) {
+		int[] selections = generateSelections(bitmap.length / 3);
+		int selectionIndex = 0;
+
+		while (changesN > 0) {
+			System.out.println("Attempting to change box " + selections[selectionIndex] + " at " + selections[selectionIndex] * 3);
+			if(makeChange(bitmap, boxes, selections[selectionIndex]*3)) {
+				changesN--;
+				System.out.println("Change succesful " + changesN);
+			}
+			selectionIndex++;
+			if (selectionIndex >= bitmap.length/3) {
+				return;
+			}
+		}
 	}
 }
