@@ -62,11 +62,11 @@ public class NPCStack {
 		Stack stack = loadBoxes(filename);
 
 		// Ensure that the annealing parameters are withing their limits
-		if (initialTemp <= 0 || initialTemp > stack.size) {
+		if (initialTemp <= 0 || initialTemp > stack.size / 3) {
 			System.err.println("initialTemp must be 0 < initialTemp <= #boxes)");
 			System.exit(1);
 		}
-		if (coolingRate < 0.01 || coolingRate > initialTemp) {
+		if (coolingRate < 0.1 || coolingRate > initialTemp) {
 			System.err.println("coolingRate must be 0.1 <= coolingRate <= initialTemp");
 			System.exit(1);
 		}
@@ -115,8 +115,6 @@ public class NPCStack {
 				height -= cuboid.h;
 			}
 		}
-		// TODO: remove
-		System.out.println(height);
 	}
 
 	/**
@@ -143,9 +141,6 @@ public class NPCStack {
 
 			// If these changes improved the stack height, apply them
 			if (stack.evaluate(true) > stack.evaluate(false)) {
-				// TODO: remove
-				System.out.println("IMPROVMENT");
-
 				stack.applyChanges();
 			}
 			else {
@@ -508,8 +503,9 @@ class Stack {
 					// If either the current cuboid or the cuboid below is the new cuboid, check it doesn't
 					// violate the touching face constraint
 					if (cuboid.id == newCuboid.id || cuboidBelow.id == cuboidBelow.id) {
-						// If the current cuboid is greater or equal to the one below, this change is not valid
-						if (cuboid.compareTo(cuboidBelow) <= 0) {
+						// If the current cuboid has a dimention greater or equal to the corresponding 
+						// dimention of the cuboid below, this change is not valid
+						if (cuboid.w >= cuboidBelow.w || cuboid.l >= cuboidBelow.l) {
 							return false;
 						}
 					}
@@ -728,7 +724,7 @@ class Cuboid implements Comparable<Cuboid> {
 	 * Specified the natural ordering of cuboids.
 	 * This cuboid is lesser than another cuboid if its face area is greater.
 	 */
-	public int compareTo(Cuboid box) {
-		return (box.w * box.l) - (w * l);
+	public int compareTo(Cuboid cuboid) {
+		return (cuboid.w * cuboid.l) - (w * l);
 	}
 }
