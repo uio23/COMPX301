@@ -34,7 +34,7 @@ public class NPCStack {
 	public static void main(String[] args) {
 		// Verify a valid number of command line arguments have been passed
 		if (args.length < 3 || args.length > 4) {
-			System.err.println("Usage: java NPCStack filename initialTemp coolingRate [nerf]");
+			System.err.println("Usage: java NPCStack filename.txt initialTemp coolingRate [nerf]");
 			System.exit(1);
 		}
 
@@ -272,7 +272,7 @@ public class NPCStack {
  * The <code>Stack</code> also knows how to make changes to some number of boxes in it, keeping both of the aforementioned constraints.
  *
  * In this documentation, I refer to some box/rotation/cuboid being in the stack if it's tracked by an instance of <code>Stack</code>,
- * but I refer to something being "included" in the stack if it contributes to the height of a valid stack. Hopefully this distinction is 
+ * but I refer to something being "included" in the stack if it is actually part of the tallest stack sequence. Hopefully this distinction is 
  * contextually clear.
  *
  * @author Oleksandr Kashpir ID:1637705
