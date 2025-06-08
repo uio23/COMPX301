@@ -4,11 +4,37 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Random;
 
+/**
+ * A program that attempts to find a good solution to the NP-Complete box stacking problem under the touching faces and 
+ * single-use constraints.
+ * Touching faces: A cuboid may only go on top of another cuboid if its width and length are strictly smaller than those of 
+ * the cuboid that it is going on top of.
+ * Single-use: A box can only be present in the stack once, as a cuboid in the form of one of its rotations.
+ *
+ * This program uses dynamic programming to generate an initial stack from the boxes specified to it by a file,
+ * and after removing duplicate rotations of a box by keeping the highest ones, it performs annealing on the 
+ * stack using the specified initial temperature and cooling rate.
+ *
+ * @author Oleksandr Kashpir ID: 1637705
+ */
 public class NPCStack {
+	/**
+	 * Tries to maximise the height of a stack created from the boxes specified in a file, 
+	 * under the touching faces and single-use constraint, through sequential function calls. 
+	 *
+	 * 1. After verifying the validity of command-line arguments, uses the specified file to initialise a <code>Stack</code> object.
+	 * 2. Generates an initial stack with dynamic programming
+	 * 3. Removes the shorter of rotational duplicates. 
+	 * 4. Randomly changes some of the stack if <code>nerf</code> is specified.
+	 * 5. Performs annealing on the stack to try find a better solution. 
+	 * 6. Finally, displays the stack that is achieved after this annealing.
+	 *
+	 * @param args  the command-line arguments passed to this program
+	 */
 	public static void main(String[] args) {
-		// Verify the valid number of command line arguments have been passed
-		if (args.length != 3) {
-			System.err.println("Usage: java NPCStack filename initialTemp coolingRate");
+		// Verify a valid number of command line arguments have been passed
+		if (args.length < 3 || args.length > 4) {
+			System.err.println("Usage: java NPCStack filename initialTemp coolingRate [nerf]");
 			System.exit(1);
 		}
 
@@ -32,6 +58,7 @@ public class NPCStack {
 			System.exit(1);
 		}
 
+		// Initialize a stack with the cuboids of the boxes in the specified file
 		Stack stack = loadBoxes(filename);
 
 		// Ensure that the annealing parameters are withing their limits
@@ -44,57 +71,86 @@ public class NPCStack {
 			System.exit(1);
 		}
 
+		// Order the cuboids of the stack by there face areas
 		stack.orderStack();
+		// Select which cuboids to include in the initial stack, removing duplicates
 		solveWithDP(stack);
-		display(stack);
-		stack.reduceToSingleRotation();
-		/*
-		BitmapManager.makeChanges(bitmap, boxes, (int) bitmap.length / 6);
-		for (Box box : boxes) {
-			box.confirmBit();
-		}
-		for (int i = 0; i < stack.size; i++) {
-			Box bb = stack.getFromStack(i);
-				System.out.printf("%d %d %d\n", bb.w, bb.l, bb.h);
-		}
-		*/
+		stack.removeDuplicates();
 
-		display(stack);
-		System.out.println("performing annealing");
+		// If the nerf flag is set, randomly change 1/4 of the boxes from the stack
+		if (args.length > 3) {
+			if (args[3].equals("nerf")) {
+				int quarterOfBoxes = (int) stack.size / 12;
+				stack.tryChanges(quarterOfBoxes);
+				stack.applyChanges();
+			}
+		}
+
+		// Perform annealing to find improvments to the initial stack, and fianlly display it
 		annealing(stack, initialTemp, coolingRate);
 		display(stack);
 	}
 
-	static public void display(Stack stack) {
-		Box box;
-		// Calculate the height of the bitmap stack
+
+	/**
+	 * Provides the output of this program.
+	 * Displays the cuboids included in the stack, from the top-most one down, 
+	 * with four integers for each, specifying the width, length and height of the
+	 * current cuboid as well as the height of the stack where this cuboid is the top-most one,
+	 * in that order.
+	 *
+	 * @param stack  the stack to display the included cuboids of
+	 */
+	private static void display(Stack stack) {
+		Cuboid cuboid;
+		// Get the height of the stack
 		int height = stack.evaluate(false);
 
-		// Display every box in the bitmap from the highest one down, alongside the high at that level
+		// Display every cuboid included in the stack, alongside the height at that level
 		for (int i = stack.size - 1; i >= 0;  i--) {
-			box = stack.getFromStack(i);
-			if (box.included()) {
-				System.out.format("%d %d %d %d\n", box.w, box.l, box.h, height);
-				height -= box.h;
+			cuboid = stack.get(i);
+
+			if (cuboid.included()) {
+				System.out.format("%d %d %d %d\n", cuboid.w, cuboid.l, cuboid.h, height);
+				height -= cuboid.h;
 			}
 		}
+		// TODO: remove
+		System.out.println(height);
 	}
 
-	private static void annealing(Stack stack, int temp, double coolingRate) {
-		double currentTemp = temp;
-		int ceilingTemp = temp;
+	/**
+	 * Performs annealing on the given stack.
+	 * Tries to change some number of boxes from the stack, equal to the current system
+	 * temperature rounded up, and applies these changes if they make an improvement to
+	 * the height of the stack.
+	 * After each of these cycles, the temperature is reduced by the specified cooling rate.
+	 * Exits once the rounded up temperature reaches 0.
+	 *
+	 * @param stack  				the stack to change in the course of this annealing
+	 * @param initialTemp   the initial temperature of the annealing system, i.e. the maximum number of boxes
+	 * 											that will be changed in a cycle
+	 * @param coolingRate   the amount that will be subtracted from the system temperature after every cycle
+	 */
+	private static void annealing(Stack stack, int initialTemp, double coolingRate) {
+		// actually current temperature will be a double since cooling rate may not be a whole number
+		double currentTemp = initialTemp;
+		int ceilingTemp = initialTemp;
 
 		while (ceilingTemp > 0) {
-			// Make ceilingTemp many changes to 
+			// Try ceilingTemp many changes to 
 			stack.tryChanges(ceilingTemp);
 
-			// If this change improved the stack, set it to be the bitmap
+			// If these changes improved the stack height, apply them
 			if (stack.evaluate(true) > stack.evaluate(false)) {
+				// TODO: remove
 				System.out.println("IMPROVMENT");
+
 				stack.applyChanges();
 			}
 			else {
-				stack.dropChanges();
+				// Otherwise, discard the changes
+				stack.cancelChange();
 			}
 
 			// Update the temperature and calculate its integer value
@@ -103,15 +159,22 @@ public class NPCStack {
 		}
 	}
 
+	/**
+	 * Creates and returns an unsorted stack of cuboids from the boxes 
+	 * specified in the file called <code>filename</code>.
+	 *
+	 * @return a stack of cuboids including 3 rotations for each box from the given file
+	 */
 	private static Stack loadBoxes(String filename) {
 		String line;
 		String[] lineWords;
 		int w, l, h;
 
+		// The stack is empty initialy
 		Stack stack = new Stack();
 
 		try(BufferedReader reader = new BufferedReader(new FileReader(filename))) {
-			// Create 3 boxes for every line in the file, skipping any invalid lines
+			// Add a box specified by each valid line in the file
 			while((line = reader.readLine()) != null) {
 				lineWords = line.split(" ");
 
@@ -133,7 +196,7 @@ public class NPCStack {
 					continue;
 				}
 
-				// Create a box for each of the 3 possible heights of this box
+				// Add the 3 possible rotations of this box to the stack, as cuboids
 				stack.addBox(w, l, h);
 			}
 		}
@@ -143,48 +206,51 @@ public class NPCStack {
 			System.exit(1);
 		}
 
-
-		// Return an array of the created box objects
 		return stack;
 	}
 
-
+	/**
+	 * Find the tallest stack possible from the given stack under the touching faces constraint
+	 * using dynamic programming. Then include the cuboids from the stack that make up this solution.
+	 *
+	 * @param stack  the stack of cuboids to find the tallest touching faces stack for 
+	 */
 	private static void solveWithDP(Stack stack) {
-		// For every box, stores the maximum stack heigh of the box, i.e. where this box is at the top
+		// For every cuboid, stores the maximum stack height of the cuboid, i.e. where this cuboid is at the top
 		int[] H = new int[stack.size];
-		// For every box, store the index of the previous box in the tallest stack of this box
-		int[] boxBelowI = new int[stack.size];
+		// For every cuboid, store the index of the previous cuboid in the tallest stack of this cuboid
+		int[] cuboidBelowI = new int[stack.size];
 
 		int maxH = 0;
 		int bestStackIndex = 0;
 
-		Box currentBox, boxBelow;
+		Cuboid currentCuboid, cuboidBelow;
 
 		for (int i = 0; i < stack.size; i++) {
-			currentBox = stack.getFromStack(i);
+			currentCuboid = stack.get(i);
 
-			// Initialise the maximum height of currentBox's stack to be the height of currentBox
-			H[i] = currentBox.h;
-			boxBelowI[i] = -1;
+			// Initialise the maximum height of currentCuboid's stack to be the height of currentCuboid
+			H[i] = currentCuboid.h;
+			cuboidBelowI[i] = -1;
 
-			// Test putting this box on every box below this one, which may be the top of its own stack
+			// Test putting this cuboid on every cuboid below this one, which may be the top of its own stack
 			for (int j = 0; j < i; j++) {
-				boxBelow = stack.getFromStack(j);
+				cuboidBelow = stack.get(j);
 
-				// Verify contraint for putting currentBox on top of this boxBelow
-				if (currentBox.l < boxBelow.l && currentBox.w < boxBelow.w) {
-					// If this also increases the high of the stack where currentBox is at the top
-					if (H[j] + currentBox.h > H[i]) {
-						// Update the maximum height of the stack with currentBox at the top
-						H[i] = H[j] + currentBox.h;
+				// Verify contraint for putting currentCuboid on top of this cuboidBelow
+				if (currentCuboid.l < cuboidBelow.l && currentCuboid.w < cuboidBelow.w) {
+					// If this also increases the high of the stack where currentCuboid is at the top
+					if (H[j] + currentCuboid.h > H[i]) {
+						// Update the maximum height of the stack with currentCuboid at the top
+						H[i] = H[j] + currentCuboid.h;
 
-						// Record that currentBox is going on top of this boxBelow
-						boxBelowI[i] = j;
+						// Record that currentCuboid is going on top of this cuboidBelow
+						cuboidBelowI[i] = j;
 					}
 				}
 				
-				// If the height achieved by currentBox's stack is the tallest so far,
-				// record the idex of currentBox as the start of the tallest stack
+				// If the height achieved by currentCuboid's stack is the tallest so far,
+				// record the index of currentCuboid as the start of the tallest stack
 				if (H[i] > maxH) {
 					maxH = H[i];
 					bestStackIndex = i;
@@ -192,89 +258,112 @@ public class NPCStack {
 			}
 		}
 
-		for (int i : H) {
-			System.out.print(i + " ");
-		}
-		System.out.println();
-		for (int i : boxBelowI) {
-			System.out.print(i + " ");
-		}
-		System.out.println();
-
-		// Convert the solution to be a bitmap of the boxes included
-		// by following the indicies in boxBelow for the best stack
+		// Represent the solution in the stack, including all the cuboids that make it up,
+		// by following the indicies in cuboidBelowI for the best stack
 		do {
-			stack.getFromStack(bestStackIndex).include();
-			bestStackIndex = boxBelowI[bestStackIndex];
+			stack.get(bestStackIndex).include();
+			bestStackIndex = cuboidBelowI[bestStackIndex];
 		}
 		while(bestStackIndex >= 0);
 		stack.applyChanges();
-
 	}
 }
 	
 	
+/**
+ * An abstract stack that stores all the possible rotations of some set of boxes, as <code>Cuboid</code>s, and manages the inclusion
+ * of these in an actual, valid stack that can verify the touching face constraint and can enforce the single-use condition by keeping
+ * only the tallest rotations of each box.
+ * The <code>Stack</code> also knows how to make changes to some number of boxes in it, keeping both of the aforementioned constraints.
+ *
+ * In this documentation, I refer to some box/rotation/cuboid being in the stack if it's tracked by an instance of <code>Stack</code>,
+ * but I refer to something being "included" in the stack if it contributes to the height of a valid stack. Hopefully this distinction is 
+ * contextually clear.
+ *
+ * @author Oleksandr Kashpir ID:1637705
+ */
 class Stack {
-	ArrayList<Box> stack;
+	ArrayList<Cuboid> stack;
 	int size;
-	ArrayList<Integer> boxesInStack;
+	ArrayList<Integer> idIndices;
 	Random random;
 
+	/**
+	 * Initialises a stack for cuboids.
+	 */
 	public Stack() {
-		stack = new ArrayList<Box>();
+		stack = new ArrayList<Cuboid>();
 		size = 0;
-		boxesInStack = new ArrayList<Integer>();
+		idIndices = new ArrayList<Integer>();
 		random = new Random();
 	}
 
+	/**
+	 * Adds a box to the stack by adding its 3 possible rotations as cuboids.
+	 *
+	 * @param w  the width of the box
+	 * @param l  the length of the box
+	 * @param h  the height of the box
+	 */
 	public void addBox(int w, int l, int h) {
-		Box r0 = new Box(w, l, h, size);
-		Box r1 = new Box(h, w, l, size+1);
-		Box r2 = new Box(l, h, w, size+2);
+		// Create the rotations with the incremented current stack size as their IDs
+		Cuboid r0 = new Cuboid(w, l, h, size);
+		Cuboid r1 = new Cuboid(h, w, l, size+1);
+		Cuboid r2 = new Cuboid(l, h, w, size+2);
+
+		// Create a cyclic linked-list between these rotations
 		r0.setRotation(r1);
 		r1.setRotation(r2);
 		r2.setRotation(r0);
 
+		// Add the rotations to the stac
 		stack.add(r0);
 		stack.add(r1);
 		stack.add(r2);
-		boxesInStack.add(size);
-		boxesInStack.add(size+1);
-		boxesInStack.add(size+2);
+
+		// Without sorting, every cuboid has an index in the stack corresponding to its id
+		idIndices.add(size);
+		idIndices.add(size+1);
+		idIndices.add(size+2);
+
+		// Update the stack size
 		size += 3;
 	}
 
-	public Box getFromStack(int i) {
+	/**
+	 * Returns the cuboid at index <code>i</code> in the stack.
+	 *
+	 * @param i  the index of the cuboid to get
+	 * @return   the cuboid at index <code>i</code> in the stack.
+	 */
+	public Cuboid get(int i) {
 		return stack.get(i);
 	}
 
-	public Box getRotation(int i, int r) {
-		int rotationIndex = (i * 3) + r;
-		return stack.get(boxesInStack.get(rotationIndex));
-	}
 
-	public Box[] getRotations(int i) {
-		Box r0 = getRotation(i, 0);
-		Box r1 = getRotation(i, 1);
-		Box r2 = getRotation(i, 2);
-
-		return new Box[] {r0, r1, r2};
-	}
-
+	/**
+	 * Orders the cuboids in this stack by their natural ordering,
+	 * and rearranges the idIndices to reflect each cuboid's new position.
+	 */
 	public void orderStack() {
-		// Sort with natural ordering of box class
+		// Sort with natural ordering of cuboid class
 		stack.sort(null);
 
-		// Update all index in the stack
+		// Update the index at every position of idIndices to reflect where 
+		// each cuboid has moved in the stack from its original order 
 		for (int stackI = 0; stackI < size; stackI++) {
-			boxesInStack.set(stack.get(stackI).index, stackI);
+			idIndices.set(stack.get(stackI).id, stackI);
 		}
 	}
 
-	public void reduceToSingleRotation() {
-		Box r0, r1, r2;
+	/**
+	 * Removes any duplicate rotations of a box included in the stack, keeping the heighest ones.
+	 */
+	public void removeDuplicates() {
+		Cuboid r0, r1, r2;
 
-		for (Box cuboid : stack) {
+		for (Cuboid cuboid : stack) {
+			// If this cuboid is included, remove it if either one of its rotations is also included and is higher or equal to it.
 			if (cuboid.included()) {
 				r0 = cuboid;
 				r1 = cuboid.rotation;
@@ -292,108 +381,108 @@ class Stack {
 		applyChanges();	
 	}
 
-	private boolean validateChange(Box newCuboid) {
-		Box previousCuboid = null;
-
-		for (Box cuboid : stack) {
-			if (cuboid.included(true)) {
-				if (previousCuboid != null) {
-					if (cuboid.index == newCuboid.index) {
-						if (previousCuboid.w <= cuboid.w || previousCuboid.l <= cuboid.l) {
-							return false;
-						}
-					}
-					else if (previousCuboid.index == newCuboid.index) {
-						if (previousCuboid.w <= cuboid.w || previousCuboid.l <= cuboid.l) {
-							return false;
-						}
-					}
-				}
-
-				previousCuboid = cuboid;
-			}
-		}
-
-		return true;
-	}
-
+	/**
+	 * Stages unique changes to up to <code>changesN</code> boxes, if that is possible without violating the 
+	 * touching faces constraint.
+	 *
+	 * A change to a box is either the addition, removal or change of its rotation in the stack.
+	 *
+	 * @param changesN  how many boxes to try to change
+	 */
 	public void tryChanges(int changesN) {
-		int[] selections = generateSelections(size / 3);
+		int selectedIndex;
 		int selectionIndex = 0;
 		boolean changeApplied = false;
-		int boxI;
 
-		/*
-		System.out.print("initial selections: ");
-		for (int i : selections) {
-			System.out.print(i + " ");
-		}
-		System.out.println();
-		*/
+		// Genereate a shuffled array of box indices
+		int[] selections = generateSelections(size / 3);
 
+		// Until the specified number of boxes have been changed
 		while (changesN > 0) {
-			if (selections[selectionIndex] >= 0) {
-				boxI = selections[selectionIndex];
+			// Pick the next box index
+			selectedIndex = selections[selectionIndex];
 
-				// Make change to selected box
-				if(tryChange(getRotations(boxI))) {
-					//System.out.println("Change " + changesN + " successful");
+			// If this box hasn't already been changed in this loop
+			if (selections[selectionIndex] >= 0) {
+
+				// Try make a change to the selected box
+				if(tryChange(selectedIndex)) {
+					// If a change can be made to the box
+
+					// Mark that a change was succefully staged in this pass of the selection indices
 					changeApplied = true;
 					selections[selectionIndex] = -1;
 					changesN--;
 				}
 			}
+			// Point to the next selection index
 			selectionIndex++;
 
-			if (selectionIndex >= size / 3) {
-				/*
-				System.out.print("selections: ");
-				for (int i : selections) {
-					nSystem.out.print(i + " ");
-				}
-				System.out.println();
-				*/
-
+			// If this exceeds the number of boxes in the stack
+			if (selectionIndex >= selections.length) {
+				// If no box could be changed in this pass of the selection indicies
+				// no more boxes can be changed so return
 				if (!changeApplied) {
-					//System.out.println(changesN + " many changed missed");
 					return;
 				}
 
+				// Otherwise, go back to the first selection index
 				selectionIndex = 0;
 				changeApplied = false;
 			}
 		}
 	}
 
-	private boolean tryChange(Box[] rotations) {
-		int[] selections = generateSelections(3);
-		int selectionIndex = 0;
-
-		Box selectedBox;
+	/**
+	 * Try change a box specified by <code>boxIndex</code>.
+	 *
+	 * A change to a box is either the addition, removal or change of its rotation in the stack.
+	 *
+	 * @param   the index of the box to change
+	 * @return  <code>true</code> if a change to this box was successfully staged;
+	 * 					<code>false</code> false, otherwise.
+	 */
+	private boolean tryChange(int boxIndex) {
+		Cuboid selectedRotation;
 		boolean flippedIncluded;
+		int selectionIndex = 0;
+	
+		// Genereate a shuffled array of rotation indices 0-2
+		int[] selections = generateSelections(3);
+		Cuboid[] rotations = getRotations(boxIndex);
 
+		// Until all rotations have been tried
 		while (selectionIndex < 3) {
-			selectedBox = rotations[selections[selectionIndex]];
+			// Select the rotation specified by the next index in selections
+			selectedRotation = rotations[selections[selectionIndex]];
 
-			flippedIncluded = !selectedBox.included();
+			// This will remove a box if its included rotation is selected, add it 
+			// if none of its rotations are included, or change the rotation included
+			// if a different rotation was already in the stack
 
-			// Remove all rotations
-			for (Box rotation : rotations) {
+			// Flip the inclusion of this rotation in the stack
+			flippedIncluded = !selectedRotation.included();
+
+			// Remove all rotations from the stack
+			for (Cuboid rotation : rotations) {
 				rotation.remove();
 			}
 
-			// If the inverse of the selected box's inclusion is to include it,
-			// do so and verify it doesn' violate the touching face condition
+			// If this change just removes a box, it will always be valid
 			if (!flippedIncluded) {
 				return true;
 			}
-			selectedBox.include();
-			if (validateChange(selectedBox)) {
+			// Otherwise, only include a new/different rotation if it doesn't
+			// violate the touching face constraint
+			selectedRotation.include();
+			if (validateChange(selectedRotation)) {
 				return true;
 			}
 			
+			// If flipping the selected rotation's inclusion would invalidate the stack,
+			// try the next rotation from the selections array
 			selectionIndex++;
-			for (Box rotation : rotations) {
+			for (Cuboid rotation : rotations) {
 				rotation.cancel();
 			}
 		}
@@ -401,44 +490,127 @@ class Stack {
 		return false;
 	}
 
+	/**
+	 * Validates the inclusion of <code>newCuboid</code> in the stack by insuring
+	 * that replacing its other rotation/including it does not violate the touching faces constraint.
+	 *
+	 * @return  <code>true</code> if including the specified cuboid would not invalidate the stack;
+	 * 					<code>false</code>, otherwise.
+	 */
+	private boolean validateChange(Cuboid newCuboid) {
+		Cuboid cuboidBelow = null;
 
+		for (Cuboid cuboid : stack) {
+			// If the current cuboid is included and isn't the first one in the stack
+			if (cuboid.included(true)) {
+				if (cuboidBelow != null) {
 
-	public int evaluate(boolean unconfirmed) {
-		Box cuboid;
-		int score = 0;
+					// If either the current cuboid or the cuboid below is the new cuboid, check it doesn't
+					// violate the touching face constraint
+					if (cuboid.id == newCuboid.id || cuboidBelow.id == cuboidBelow.id) {
+						// If the current cuboid is greater or equal to the one below, this change is not valid
+						if (cuboid.compareTo(cuboidBelow) <= 0) {
+							return false;
+						}
+					}
+				}
 
-		// Every included box contributes its height to the score
-		for (int stackI = 0; stackI < size; stackI++) {
-			cuboid = getFromStack(stackI);
-			if (cuboid.included(unconfirmed)) {
-				score += cuboid.h;
-
+				// This included cuboid will now be the cuboid below
+				cuboidBelow = cuboid;
 			}
 		}
 
-		return score;
+		return true;
 	}
 
+	/**
+	 * Returns either the staged height or current height of this stack, formed by either its staged included or 
+	 * actually included cuboids, respectively.
+	 *
+	 * @param unconfirmed   whether to return the staged stack height
+	 * @return  						the staged or current height of this stack
+	 */
+	public int evaluate(boolean unconfirmed) {
+		Cuboid cuboid;
+		int totalHeight = 0;
+
+		// Every cuboid that is either staged/actually included contributes its height to the total height
+		for (int stackI = 0; stackI < size; stackI++) {
+			cuboid = get(stackI);
+			if (cuboid.included(unconfirmed)) {
+				totalHeight += cuboid.h;
+			}
+		}
+
+		return totalHeight;
+	}
+
+	/**
+	 * Confirms the staged inclusion of every cuboid in this stack.
+	 */
 	public void applyChanges() {
-		for (Box cuboid : stack) {
+		for (Cuboid cuboid : stack) {
 			cuboid.confirm();
 		}
 	}
 
-	public void dropChanges() {
-		for (Box cuboid : stack) {
+	/**
+	 * Cancels the staged inclusion of every cuboid in this stack.
+	 */
+	public void cancelChange() {
+		for (Cuboid cuboid : stack) {
 			cuboid.cancel();
 		}
 	}
 
+	/**
+	 * Returns the cuboid specified by its box's index <code>i</code> and its rotation <code>r</code>.
+	 * A box's index is how many boxes were added before it, such that 
+	 * <code>size</code> / 3 is the index of the last box.
+	 *
+	 * @param   the index of the rotation's box
+	 * @param   the rotation number, from 0-2
+	 * @return  the cuboid specified by its box's index <code>i</code> and its rotation <code>r</code>
+	 */
+	private Cuboid getRotation(int i, int r) {
+		// Calculate the id of this cuboid
+		int id = (i * 3) + r;
 
+		// Return a cuboid from the stack at the index specified by the IDth idIndicies value 
+		return stack.get(idIndices.get(id));
+	}
+
+	/**
+	 * Returns the rotations of a box specified by its index <code>i</code>.
+	 * A box's index is how many boxes were added before it, such that 
+	 * <code>size</code> / 3 is the index of the last box.
+	 *
+	 * @return  the rotations of a box specified by its index <code>i</code>
+	 */
+	private Cuboid[] getRotations(int i) {
+		Cuboid r0 = getRotation(i, 0);
+		Cuboid r1 = getRotation(i, 1);
+		Cuboid r2 = getRotation(i, 2);
+
+		return new Cuboid[] {r0, r1, r2};
+	}
+
+	/**
+	 * Generates an array of integers from 0 up to <code>n</code> (exclusive)
+	 * and returns this array, shuffled.
+	 *
+	 * @param n  size of array to generate/upper limit to the integers in it
+	 * @return   A shuffled array of integers from 0 up to and excluding <code>n</code>
+	 */
 	private int[] generateSelections(int n) {
-
-		int [] selections = new int[n];
 		int temp, index;
+
+		// Create the array of integers from 0 to n
+		int [] selections = new int[n];
 		for (int i = 0; i < n; selections[i] = i++);
 
-		// Shuffle
+		// Shuffle it by swapping a random number with the number in the first position,
+		// n many times
 		for (int i = 0; i < n; i++) {
 			index = random.nextInt(n);
 			temp = selections[0];
@@ -449,61 +621,114 @@ class Stack {
 		return selections;
 	}
 }
-	class Box implements Comparable<Box> {
-		public int h, l, w, index;
-		public Box rotation;
-		private boolean included, stagedIncluded;
 
-		public Box(int x, int y, int z, int index) {
-			if (x > y) {
-				w = x;
-				l = y;
-			}
-			else {
-				w = y;
-				l = x;
-			}
-			h = z;
-			this.index = index;
 
-			included = stagedIncluded = false;
-		}
+/**
+ * A representation of a particular rotation of a particular box, instances of which are stored in a <code>Stack</code> and
+ * make up the 'stack' of boxes it represents with included cuboids.
+ *
+ * i.e., for the purposes of this documentation, a cuboid is any rotation of any box.
+ *
+ * @author Oleksandr Kashpir ID: 1637705
+ */
+class Cuboid implements Comparable<Cuboid> {
+	public int h, l, w, id;
+	public Cuboid rotation;
+	private boolean included, stagedIncluded;
 
-		public void setRotation(Box r) {
-			rotation = r;
-		}
-
-		public void include() {
-			stagedIncluded = true;
-		}
-
-		public boolean included(boolean unconfirmed) {
-			if (unconfirmed) {
-				return stagedIncluded;
-			}
-			return included;
-		}
-
-		public void remove() {
-			stagedIncluded = false;
-		}
-
-		public void confirm() {
-			included = stagedIncluded;
-		}
-
-		public void cancel() {
-			stagedIncluded = included;
-		}
-
-		public boolean included() {
-			return included;
-		}
-
-		/**
-	 * This box is lesser than another box if its face area is greater
+	/**
+	 * Initialises a <code>Cuboid</code> object with the specified dimensions and index.
+	 * The greater of <code>x</code> and <code>y</code> is always taken to be the cuboid's width.
+	 * A cuboid is initially considered not included.
+	 *
+	 * @param x   the width or length of this cuboid
+	 * @param y   the width of length of this cuboid
+	 * @param z   the height of this cuboid
+	 * @param id  the unique integer value associated with this cuboid
 	 */
-		public int compareTo(Box box) {
-			return box.w * box.l - w * l;
+	public Cuboid(int x, int y, int z, int id) {
+		if (x > y) {
+			w = x;
+			l = y;
 		}
+		else {
+			w = y;
+			l = x;
+		}
+
+		h = z;
+		this.id = id;
+		// Initialy this cuboid is not included
+		included = stagedIncluded = false;
 	}
+
+	/**
+	 * Sets the reference to one of this cuboid's rotations.
+	 *
+	 * For the purposes of my implementation, its suffices for each
+	 * cuboid to be aware of just one of its rotations, as
+	 * each box forms a cyclic linked-list of its rotations this way.
+	 */
+	public void setRotation(Cuboid r) {
+		rotation = r;
+	}
+
+	/**
+	 * Stages this cuboid to be marked as included.
+	 */
+	public void include() {
+		stagedIncluded = true;
+	}
+	
+	/**
+	 * Stages this cuboid to be marked as not included.
+	 */
+	public void remove() {
+		stagedIncluded = false;
+	}
+
+	/**
+	 * Confirms the staged inclusion of this cuboid.
+	 */
+	public void confirm() {
+		included = stagedIncluded;
+	}
+
+	/**
+	 * Cancels the staged inclusion of this cuboid.
+	 */
+	public void cancel() {
+		stagedIncluded = included;
+	}
+
+	/**
+	 * Returns the confirmed inclusion of this cuboid.
+	 *
+	 * @return  the confirmed inclusion of this cuboid
+	 */
+	public boolean included() {
+		return included;
+	}
+
+	/**
+	 * Returns either the confirmed or staged inclusion of this cuboid.
+	 *
+	 * @param unconfirmed   whether to return the staged inclusion of this cuboid
+	 * @return  the staged inclusion of this cuboid, if <code>unconfirmed</code>;
+	 * 					the confirmed inclusion of this cuboid, otherwise.
+	 */
+	public boolean included(boolean unconfirmed) {
+		if (unconfirmed) {
+			return stagedIncluded;
+		}
+		return included;
+	}
+
+	/**
+	 * Specified the natural ordering of cuboids.
+	 * This cuboid is lesser than another cuboid if its face area is greater.
+	 */
+	public int compareTo(Cuboid box) {
+		return (box.w * box.l) - (w * l);
+	}
+}
